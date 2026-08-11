@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="lha-token" content="__LHA_TOKEN__">
+  <title>Linux Hardening Agent</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">LH</div><div><strong>Hardening Agent</strong><span>Local Security Console</span></div></div>
+      <nav aria-label="Hauptnavigation">
+        <button class="nav active" data-view="dashboard"><span class="nav-icon">01</span><span>Übersicht</span></button>
+        <button class="nav" data-view="targets"><span class="nav-icon">02</span><span>Zielsysteme</span></button>
+        <button class="nav" data-view="hardening"><span class="nav-icon">03</span><span>Hardening</span></button>
+        <button class="nav" data-view="policies"><span class="nav-icon">04</span><span>Prüfumfang & Quellen</span></button>
+        <button class="nav" data-view="report"><span class="nav-icon">05</span><span>Prüfbericht</span></button>
+        <button class="nav" data-view="kvm"><span class="nav-icon">+</span><span>KVM optional</span></button>
+      </nav>
+      <div class="local-note"><span class="pulse"></span><div><strong>Nur lokal erreichbar</strong><code>127.0.0.1:8765 · <span id="app-version">Version …</span></code></div></div>
+    </aside>
+
+    <main>
+      <header>
+        <div><p class="eyebrow">LOCAL SECURITY OPERATIONS</p><h1 id="page-title">Übersicht</h1></div>
+        <div class="header-actions"><span class="secure-state"><span class="pulse"></span>Geschützter Benutzerbetrieb</span><button id="refresh" class="secondary">Status aktualisieren</button></div>
+      </header>
+
+      <section id="dashboard" class="view active">
+        <article class="welcome">
+          <div><span class="kicker">LINUX HARDENING</span><h2>Systeme prüfen. Massnahmen kontrollieren. Sicher ausführen.</h2><p>Lokale Analyse, offizielle Hardening-Regeln und Qwen3 – ohne direkten Root-Zugriff für das Sprachmodell.</p></div>
+          <div class="welcome-actions"><button class="jump" data-jump="targets">Ziel hinzufügen</button><button class="secondary jump" data-jump="hardening">Paket erstellen</button></div>
+        </article>
+        <div class="cards">
+          <article class="metric"><div class="metric-top"><span>AI Engine</span><i class="status-dot"></i></div><strong id="ollama-state">…</strong><small id="ollama-model">Qwen</small></article>
+          <article class="metric"><div class="metric-top"><span>Zielsysteme</span><i></i></div><strong id="target-count">–</strong><small>lokal oder SSH</small></article>
+          <article class="metric"><div class="metric-top"><span>Prüf-Engines</span><i></i></div><strong id="engine-count">3</strong><small>Policy · OVAL · Ergänzungen</small></article>
+          <article class="metric optional"><div class="metric-top"><span>KVM optional</span><i></i></div><strong id="vm-count">–</strong><small>erkannte Domains</small></article>
+        </div>
+        <div class="workflow">
+          <div><span>1</span><strong>Ziel wählen</strong><small>Lokal, SSH oder KVM</small></div><b></b>
+          <div><span>2</span><strong>Read-only Audit</strong><small>Systemzustand erfassen</small></div><b></b>
+          <div><span>3</span><strong>Plan prüfen</strong><small>Regeln und Ausnahmen</small></div><b></b>
+          <div><span>4</span><strong>Paket ausführen</strong><small>Bewusst mit Root-Rechten</small></div>
+        </div>
+        <article class="panel">
+          <div class="panel-title"><div><span class="section-label">GESUNDHEIT</span><h2>Systemstatus</h2><p>Lokale Werkzeuge und Sicherheitsgrenzen</p></div><span id="root-badge" class="badge">Benutzerbetrieb</span></div>
+          <div id="tool-status" class="check-grid"></div><div id="status-warnings" class="messages"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-title"><div><span class="section-label">LOCAL AI</span><h2>Ollama-Modelle</h2><p>Installierte Modelle auswählen und verwalten</p></div><span id="ai-runtime-state" class="badge">Status wird geladen</span></div>
+          <div class="ai-model-select"><label>Aktives Modell<select id="active-model" aria-label="Aktives Ollama-Modell"></select></label><button id="select-model" type="button" class="secondary">Modell verwenden</button><p id="ai-runtime-detail">Noch keine Statusinformation</p></div>
+          <div id="model-list" class="list"></div>
+          <form id="pull-model-form" class="inline-form"><input id="pull-model" value="qwen3:14b" aria-label="Ollama-Modell"><button type="submit">Modell laden</button></form>
+        </article>
+      </section>
+
+      <section id="targets" class="view">
+        <div class="split">
+          <article class="panel">
+            <div class="panel-title"><div><span class="section-label">VERBINDUNG</span><h2>Zielsystem hinzufügen</h2><p>Wähle zuerst, wie der Agent das System erreicht.</p></div></div>
+            <form id="target-form" class="form-grid">
+              <div id="edit-target-banner" class="edit-banner wide" hidden><span>Bearbeitung: <strong id="edit-target-name"></strong></span><button id="cancel-target-edit" type="button" class="secondary">Abbrechen</button></div>
+              <div class="mode-select wide">
+                <label class="mode-card"><input id="target-mode-local" name="target-mode" type="radio" value="local" checked><span><strong>Lokales Linux</strong><small>Dieser Rechner · ohne SSH und KVM</small></span></label>
+                <label class="mode-card"><input id="target-mode-ssh" name="target-mode" type="radio" value="ssh"><span><strong>SSH-Server</strong><small>Beliebige unterstützte Distribution</small></span></label>
+              </div>
+              <label>Name<input id="target-name" required pattern="[A-Za-z0-9_.-]+" placeholder="z. B. debian-local"></label>
+              <label class="ssh-field">Host/IP<input id="target-host" required placeholder="192.168.1.50"></label>
+              <label class="ssh-field">SSH-Benutzer<input id="target-user" value="admin"></label>
+              <label class="ssh-field">SSH-Port<input id="target-port" type="number" value="22" min="1" max="65535"></label>
+              <label class="wide ssh-field">Privater Schlüssel<input id="target-key" placeholder="z. B. ~/.ssh/id_ed25519 – bei Vagrant automatisch"></label>
+              <label class="wide optional-field">KVM-Name <em>optional</em><input id="target-vm" placeholder="Leer lassen, wenn keine KVM verwendet wird"></label>
+              <button id="target-submit" type="submit" class="wide">Zielsystem speichern</button>
+            </form>
+          </article>
+          <article class="panel">
+            <div class="panel-title"><div><span class="section-label">INVENTAR</span><h2>Verwaltete Systeme</h2><p>Der Audit bleibt vollständig read-only.</p></div></div>
+            <div id="target-list" class="list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="hardening" class="view">
+        <article class="panel hardening-guide hardening-group benchmark-group">
+          <div class="panel-title"><div><span class="section-label">1 · OFFIZIELLER BENCHMARK</span><h2>Hersteller-Benchmark</h2><p>Maschinenlesbare OpenSCAP-/XCCDF-Regeln der erkannten Distribution und Version.</p></div><span class="badge">Read-only</span></div>
+          <div class="assistant-steps">
+            <div><span>1</span><strong>Ziel auswählen</strong><small>Server oder Test-VM</small></div>
+            <div><span>2</span><strong>System erkennen</strong><small>Hersteller und Version</small></div>
+            <div><span>3</span><strong>Richtlinie zuordnen</strong><small>SUSE, OpenSCAP, USG …</small></div>
+            <div><span>4</span><strong>Kontrollen prüfen</strong><small>Bestanden, offen, nicht abgedeckt</small></div>
+          </div>
+          <div id="guideline-summary" class="guideline-summary"><div class="control-placeholder">Ziel wählen. Danach erkennt der Agent Betriebssystem, Version und den vollständigen SCAP-Benchmark.</div></div>
+        </article>
+        <article class="panel hardening-group general-hardening-group">
+          <div class="panel-title"><div><span class="section-label">2 · ALLGEMEINES HARDENING</span><h2>Allgemeines Linux-Hardening</h2><p>Separate Einordnung nach ANSSI, BSI und NIST. Sie ergänzt den Hersteller-Benchmark, ersetzt ihn aber nicht.</p></div><span class="badge">Ergänzende Baseline</span></div>
+          <div id="general-hardening-summary"><div class="control-placeholder">Nach dem Full Scan werden hier allgemeine Linux-Empfehlungen, Systemrolle und Paketerstellung angezeigt.</div></div>
+        </article>
+        <div class="split">
+          <article class="panel">
+            <div class="panel-title"><div><span class="section-label">AUSWAHL</span><h2>Zielsystem</h2><p>Das Profil bildet die offizielle Basis; der Full Scan ergänzt alle übrigen Regeln des Benchmarks.</p></div></div>
+            <form id="build-form" class="form-grid">
+              <label class="wide">Welches System?<select id="build-target" required></select></label>
+              <button id="load-controls" type="button" class="wide">System erkennen und SCAP-Benchmark laden</button>
+              <button id="full-scan" type="button" class="wide full-scan-button">Full Scan starten</button>
+            </form>
+          </article>
+          <article class="panel activity-panel">
+            <div class="panel-title"><div><span class="section-label">PROTOKOLL</span><h2>Aktivität</h2><p>Ergebnisse und Warnungen dieses Laufs</p></div></div>
+            <div id="activity" class="activity"><p>Noch keine Aktion ausgeführt.</p></div>
+          </article>
+        </div>
+        <article class="panel full-scan-panel">
+          <div class="panel-title"><div><span class="section-label">GESAMTPRÜFUNG</span><h2>Vollständiger Benchmark und Schwachstellen</h2><p>Prüft alle Regeln des OpenSCAP-Datenstroms in einem eigenen Vollprofil und zusätzlich die offiziellen OVAL-Paketdaten.</p></div><span id="full-scan-badge" class="badge">Bereit</span></div>
+          <div class="scan-progress"><div id="full-scan-progress"></div></div>
+          <p id="full-scan-stage" class="scan-stage">Zuerst das System erkennen, damit das passende OpenSCAP-Profil gewählt werden kann.</p>
+          <div class="scan-scope">
+            <label><input id="scan-configuration" type="checkbox" checked><span><strong>Konfigurations-Benchmark</strong><small>Alle Regeln des XCCDF-Datenstroms – unabhängig von standard</small></span></label>
+            <label><input id="scan-vulnerabilities" type="checkbox" checked><span><strong>Schwachstellen und Patches</strong><small>Offizieller OVAL-Feed der erkannten Version</small></span></label>
+          </div>
+          <div id="full-scan-results" class="full-scan-results"></div>
+        </article>
+      </section>
+
+      <section id="policies" class="view">
+        <article class="panel policy-scope-panel">
+          <div class="panel-title"><div><span class="section-label">POLICY UND HERKUNFT</span><h2>Prüfumfang des gewählten Linux-Systems</h2><p>Die ausführbaren Regeln stammen ausschließlich aus dem installierten OpenSCAP-/Herstellerprofil. Herstellerdokumente und OVAL-Feeds werden getrennt zugeordnet.</p></div><span class="badge">Herstellerprofile</span></div>
+          <div class="policy-explainer">
+            <div><strong>1 · Konfigurationsregeln</strong><span>Distribution + Version → Datenstrom → Profil → vollständige XCCDF-Regeln</span></div>
+            <div><strong>2 · Schwachstellen</strong><span>Distribution + Version → offizieller OVAL-Feed → betroffene Pakete</span></div>
+            <div><strong>3 · Dokumentation</strong><span>Hersteller + Versionsmuster → Richtlinie → Kategorien und Referenz</span></div>
+          </div>
+          <div id="policy-overview" class="policy-overview"><div class="control-placeholder">Unter Hardening zuerst ein Zielsystem erkennen. Danach erscheint hier der vollständige Prüfaufbau.</div></div>
+        </article>
+        <article class="panel source-discovery-panel">
+          <div class="panel-title"><div><span class="section-label">QUELLENPRÜFUNG</span><h2>Offizielle Herstellerquellen suchen</h2><p>Qwen bewertet nur erlaubte Herstellerdomains. Ein Treffer wird erst nach deiner Prüfung gespeichert.</p></div></div>
+          <div class="source-analysis-note"><label>Suchumfang<select id="guideline-discovery-scope"><option value="target">Gewähltes Zielsystem</option><option value="manual">Distribution/Version aus dem Formular</option><option value="inventories">Alle bereits geprüften Linux-Versionen</option><option value="supported">Alle unterstützten Hersteller und Versionen</option></select></label><div class="source-search-actions"><button id="discover-guideline-sources" type="button">Offizielle Richtlinien suchen</button><button id="review-guideline-sources" type="button" class="secondary">Gespeicherte Quellen mit Qwen prüfen</button></div><div id="source-discovery-result"></div><div id="source-review-result"></div></div>
+        </article>
+        <article class="panel guideline-manager">
+          <div class="panel-title"><div><span class="section-label">ZUORDNUNGEN</span><h2>Gespeicherte Herstellerquellen</h2><p>Offizielle Quellen werden Distribution und Version zugeordnet. Prüfkategorien stammen ausschließlich aus den eingelesenen SCAP-Regeln.</p></div><span id="source-count" class="badge">0 Quellen</span></div>
+          <div id="guideline-source-list" class="guideline-source-list"></div>
+          <details id="source-editor" class="source-editor">
+            <summary>Offizielle Quelle zuordnen</summary>
+            <form id="guideline-source-form" class="form-grid">
+              <input id="source-original-id" type="hidden">
+              <label>Quellen-ID<input id="source-id" placeholder="suse.leap15.security" required pattern="[a-z0-9][a-z0-9_.-]{2,127}"></label>
+              <label>Hersteller<input id="source-publisher" placeholder="SUSE" required></label>
+              <label class="wide">Titel<input id="source-title" placeholder="Security and Hardening Guide" required></label>
+              <label class="wide">Offizielle HTTPS-Adresse<input id="source-url" type="url" placeholder="https://documentation.suse.com/..." required></label>
+              <label>Distribution<input id="source-distribution" placeholder="opensuse-leap oder *" required></label>
+              <label>Versionsmuster<input id="source-version" placeholder="15.* oder *" required></label>
+              <label>Zuletzt geprüft<input id="source-reviewed" type="date" required></label>
+              <label class="toggle"><input id="source-enabled" type="checkbox" checked><span>Quelle aktiv</span></label>
+              <label class="wide">Geltungsbereich<input id="source-scope" placeholder="Für openSUSE Leap 15.x fachlich geprüft" required></label>
+              <div class="workshop-actions wide"><button type="submit">Quelle speichern</button><button id="cancel-source-edit" type="button" class="secondary">Neue Quelle</button></div>
+            </form>
+          </details>
+        </article>
+      </section>
+
+      <section id="report" class="view">
+        <article class="panel">
+          <div class="panel-title"><div><span class="section-label">IST / SOLL / QUELLE</span><h2>Systemkonfiguration und Referenzen</h2><p id="report-context">Nach einem Systemcheck erscheinen hier Konfiguration, Bewertung und offizielle Guideline-Referenzen.</p></div></div>
+          <div id="report-summary" class="report-summary"></div>
+          <div class="report-filters" aria-label="Prüfbericht filtern">
+            <input id="report-filter" placeholder="Regel, Kontrolle oder Referenz suchen">
+            <select id="report-kind" aria-label="Prüfart"><option value="all">Alle Prüfarten</option><option value="scap">Hersteller-Benchmark</option><option value="baseline">Allgemeines Linux-Hardening</option></select>
+            <select id="report-status" aria-label="Ergebnisstatus"><option value="all">Alle Status</option><option value="fail">Nicht bestanden</option><option value="pass">Bestanden</option><option value="not_applicable">Nicht anwendbar</option><option value="manual">Manuell</option><option value="not_covered">Nicht abgedeckt</option><option value="technical_gap">Technische Lücke</option><option value="notselected">Nicht ausgewählt</option><option value="notchecked">Nicht geprüft</option><option value="error">Fehler</option></select>
+            <select id="report-category" aria-label="Kategorie"><option value="all">Alle Kategorien</option></select>
+            <select id="report-source" aria-label="Quelle"><option value="all">Alle Quellen</option><option value="anssi">ANSSI-BP-028</option><option value="bsi">BSI SYS.1.3</option><option value="nist">NIST SP 800-123</option><option value="manufacturer">Herstellerquelle</option></select>
+            <select id="report-selection" aria-label="Maßnahmenauswahl"><option value="all">Alle Einträge</option><option value="selected">Nur ausgewählt</option><option value="unselected">Nicht ausgewählt</option></select>
+            <button id="report-reset" type="button" class="secondary">Filter zurücksetzen</button>
+            <span id="report-visible-count" class="badge">0 Einträge</span>
+          </div>
+          <div id="report-list" class="report-list"><div class="control-placeholder">Noch kein Prüfbericht vorhanden. Zuerst unter Hardening die Kontrollen laden.</div></div>
+        </article>
+      </section>
+
+      <section id="kvm" class="view">
+        <article class="panel">
+          <div class="panel-title"><div><span class="section-label">OPTIONALE INTEGRATION</span><h2>Lokale KVM-Domains</h2><p>Vagrant/libvirt wird erkannt und übernimmt den verwalteten SSH-Zugang automatisch. Ohne KVM funktionieren lokale und SSH-Ziele unverändert.</p></div><button id="refresh-vms" class="secondary">Neu einlesen</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>IP-Adressen</th><th>vCPU</th><th>Aktion</th></tr></thead><tbody id="vm-table"></tbody></table></div>
+          <div id="vm-warnings" class="messages"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

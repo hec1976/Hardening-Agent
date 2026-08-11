@@ -1,0 +1,18 @@
+{
+  "required_ports": ["22/tcp", "25/tcp", "465/tcp", "587/tcp"],
+  "required_services": ["sshd", "postfix"],
+  "exclude_rules": [],
+  "rule_parameters": {
+    "ssh.disable_root_login": {
+      "value": "no"
+    },
+    "ssh.max_auth_tries": {
+      "max_auth_tries": 4
+    }
+  },
+  "constraints": [
+    "IPv6 must remain enabled",
+    "Postfix must not be restarted automatically"
+  ]
+}
+

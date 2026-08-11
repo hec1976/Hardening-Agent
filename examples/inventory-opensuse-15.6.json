@@ -1,0 +1,24 @@
+{
+  "target": "suse-demo",
+  "collected_at": "2026-07-28T12:00:00+00:00",
+  "platform": {
+    "family": "suse",
+    "distribution": "opensuse-leap",
+    "version": "15.6",
+    "pretty_name": "openSUSE Leap 15.6"
+  },
+  "sections": {
+    "os_release": "NAME=\"openSUSE Leap\"\nID=\"opensuse-leap\"\nVERSION_ID=\"15.6\"\nPRETTY_NAME=\"openSUSE Leap 15.6\"",
+    "kernel": "Linux suse-demo 6.4.0-150600-default x86_64 GNU/Linux",
+    "virtualization": "kvm",
+    "listening": "LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:((\"sshd\",pid=700,fd=3))",
+    "services": "sshd.service enabled\nauditd.service enabled",
+    "sshd_effective": "permitrootlogin prohibit-password\nmaxauthtries 6\nx11forwarding yes\npermitemptypasswords no",
+    "firewall": "running\npublic (active)\n  services: ssh",
+    "lsm": "lockdown,capability,landlock,yama,apparmor,bpf",
+    "audit": "enabled 1\nfailure 1",
+    "sysctl": "kernel.kptr_restrict = 1\nkernel.dmesg_restrict = 0\nkernel.randomize_va_space = 2",
+    "updates": "No updates found."
+  },
+  "warnings": []
+}
