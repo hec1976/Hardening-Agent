@@ -163,7 +163,7 @@ hardening-agent gui --no-browser --model qwen3:8b
 - Zustandsändernde API-Aufrufe benötigen ein sitzungsgebundenes Token.
 - Inventar und Scanberichte werden lokal gespeichert.
 - Ziele laden keine Richtlinien aus dem Internet; der Agent verwaltet Quellen und Transporte.
-- Maßnahmen benötigen eine ausdrückliche Auswahl und Bestätigung.
+- Massnahmen benötigen eine ausdrückliche Auswahl und Bestätigung.
 - Vor produktiver Anwendung sind Snapshot/Backup und Konsolenzugang erforderlich.
 
 ## Entwicklung
