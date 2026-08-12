@@ -84,20 +84,6 @@
       </section>
 
       <section id="hardening" class="view">
-        <article class="panel hardening-guide hardening-group benchmark-group">
-          <div class="panel-title"><div><span class="section-label">1 · OFFIZIELLER BENCHMARK</span><h2>Hersteller-Benchmark</h2><p>Maschinenlesbare OpenSCAP-/XCCDF-Regeln der erkannten Distribution und Version.</p></div><span class="badge">Read-only</span></div>
-          <div class="assistant-steps">
-            <div><span>1</span><strong>Ziel auswählen</strong><small>Server oder Test-VM</small></div>
-            <div><span>2</span><strong>System erkennen</strong><small>Hersteller und Version</small></div>
-            <div><span>3</span><strong>Richtlinie zuordnen</strong><small>SUSE, OpenSCAP, USG …</small></div>
-            <div><span>4</span><strong>Kontrollen prüfen</strong><small>Bestanden, offen, nicht abgedeckt</small></div>
-          </div>
-          <div id="guideline-summary" class="guideline-summary"><div class="control-placeholder">Ziel wählen. Danach erkennt der Agent Betriebssystem, Version und den vollständigen SCAP-Benchmark.</div></div>
-        </article>
-        <article class="panel hardening-group general-hardening-group">
-          <div class="panel-title"><div><span class="section-label">2 · ALLGEMEINES HARDENING</span><h2>Allgemeines Linux-Hardening</h2><p>Separate Einordnung nach ANSSI, BSI und NIST. Sie ergänzt den Hersteller-Benchmark, ersetzt ihn aber nicht.</p></div><span class="badge">Ergänzende Baseline</span></div>
-          <div id="general-hardening-summary"><div class="control-placeholder">Nach dem Full Scan werden hier allgemeine Linux-Empfehlungen, Systemrolle und Paketerstellung angezeigt.</div></div>
-        </article>
         <div class="split">
           <article class="panel">
             <div class="panel-title"><div><span class="section-label">AUSWAHL</span><h2>Zielsystem</h2><p>Das Profil bildet die offizielle Basis; der Full Scan ergänzt alle übrigen Regeln des Benchmarks.</p></div></div>
@@ -105,6 +91,7 @@
               <label class="wide">Welches System?<select id="build-target" required></select></label>
               <button id="load-controls" type="button" class="wide">System erkennen und SCAP-Benchmark laden</button>
               <button id="full-scan" type="button" class="wide full-scan-button">Full Scan starten</button>
+              <button id="reset-hardening" type="button" class="wide secondary">Zurücksetzen</button>
             </form>
           </article>
           <article class="panel activity-panel">
@@ -112,13 +99,30 @@
             <div id="activity" class="activity"><p>Noch keine Aktion ausgeführt.</p></div>
           </article>
         </div>
-        <article class="panel full-scan-panel">
-          <div class="panel-title"><div><span class="section-label">GESAMTPRÜFUNG</span><h2>Vollständiger Benchmark und Schwachstellen</h2><p>Prüft alle Regeln des OpenSCAP-Datenstroms in einem eigenen Vollprofil und zusätzlich die offiziellen OVAL-Paketdaten.</p></div><span id="full-scan-badge" class="badge">Bereit</span></div>
+        <article class="panel hardening-guide hardening-group benchmark-group">
+          <div class="panel-title"><div><span class="section-label">1 · OFFIZIELLER BENCHMARK</span><h2>Hersteller-Benchmark</h2><p>Maschinenlesbare OpenSCAP-/XCCDF-Regeln der erkannten Distribution und Version.</p></div><span class="badge">Read-only</span></div>
+          <details id="hardening-guide-steps" class="collapsible-guide" open>
+            <summary>So funktioniert das</summary>
+            <div class="assistant-steps">
+              <div><span>1</span><strong>Ziel auswählen</strong><small>Server oder Test-VM</small></div>
+              <div><span>2</span><strong>System erkennen</strong><small>Hersteller und Version</small></div>
+              <div><span>3</span><strong>Richtlinie zuordnen</strong><small>SUSE, OpenSCAP, USG …</small></div>
+              <div><span>4</span><strong>Kontrollen prüfen</strong><small>Bestanden, offen, nicht abgedeckt</small></div>
+            </div>
+          </details>
+          <div id="guideline-summary" class="guideline-summary"><div class="control-placeholder">Ziel wählen. Danach erkennt der Agent Betriebssystem, Version und den vollständigen SCAP-Benchmark.</div></div>
+        </article>
+        <article class="panel hardening-group general-hardening-group">
+          <div class="panel-title"><div><span class="section-label">2 · ALLGEMEINES HARDENING</span><h2>Allgemeines Linux-Hardening</h2><p>Separate Einordnung nach ANSSI, BSI und NIST. Sie ergänzt den Hersteller-Benchmark, ersetzt ihn aber nicht.</p></div><span class="badge">Ergänzende Baseline</span></div>
+          <div id="general-hardening-summary"><div class="control-placeholder">Nach dem Full Scan werden hier allgemeine Linux-Empfehlungen, Systemrolle und Paketerstellung angezeigt.</div></div>
+        </article>
+        <article class="panel hardening-group vulnerability-group full-scan-panel">
+          <div class="panel-title"><div><span class="section-label">3 · SCHWACHSTELLEN</span><h2>Schwachstellen und Patches (OVAL)</h2><p>Offizieller OVAL-Feed der erkannten Distribution und Version. Zeigt betroffene Pakete und fehlende Herstellerupdates.</p></div><span id="full-scan-badge" class="badge">Bereit</span></div>
           <div class="scan-progress"><div id="full-scan-progress"></div></div>
           <p id="full-scan-stage" class="scan-stage">Zuerst das System erkennen, damit das passende OpenSCAP-Profil gewählt werden kann.</p>
           <div class="scan-scope">
-            <label><input id="scan-configuration" type="checkbox" checked><span><strong>Konfigurations-Benchmark</strong><small>Alle Regeln des XCCDF-Datenstroms – unabhängig von standard</small></span></label>
             <label><input id="scan-vulnerabilities" type="checkbox" checked><span><strong>Schwachstellen und Patches</strong><small>Offizieller OVAL-Feed der erkannten Version</small></span></label>
+            <label><input id="scan-configuration" type="checkbox" checked><span><strong>Zusätzlich: vollständiger Konfigurations-Benchmark</strong><small>Ergänzende technische Info – alle Regeln des XCCDF-Datenstroms, unabhängig von standard</small></span></label>
           </div>
           <div id="full-scan-results" class="full-scan-results"></div>
         </article>

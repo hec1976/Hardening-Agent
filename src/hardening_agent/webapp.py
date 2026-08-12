@@ -456,7 +456,10 @@ def _start_hardening_review_job(
 
 
 def _sanitize_baseline_setup(
-    response: dict[str, Any], control: dict[str, Any], model: str
+    response: dict[str, Any],
+    control: dict[str, Any],
+    model: str,
+    platform: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     recommendations = {"apply", "review", "keep", "not_recommended"}
     recommendation = str(response.get("recommendation", "review"))
@@ -478,6 +481,17 @@ def _sanitize_baseline_setup(
             return []
         return [str(item)[:1000] for item in values[:limit]]
 
+    platform = platform or {}
+    platform_label = str(
+        platform.get("pretty_name")
+        or " ".join(
+            part
+            for part in (platform.get("distribution"), platform.get("version"))
+            if part
+        )
+        or ""
+    ).strip()
+
     failed_rule_ids = [str(item) for item in control.get("failed_rule_ids", [])]
     implementation_mode = "openscap" if failed_rule_ids else "operator_review"
     return {
@@ -486,8 +500,10 @@ def _sanitize_baseline_setup(
         "control_id": str(control.get("id", "")),
         "control_title": str(control.get("title", ""))[:500],
         "control_status": str(control.get("status", ""))[:50],
+        "platform": platform_label[:200],
         "summary": str(response.get("summary", ""))[:3000],
         "recommendation": (recommendation if recommendation in recommendations else "review"),
+        "mechanism": str(response.get("mechanism", ""))[:200],
         "settings": settings,
         "prerequisites": short_list("prerequisites"),
         "operational_impact": str(response.get("operational_impact", ""))[:2000],
@@ -536,7 +552,7 @@ def _run_baseline_setup_job(
         response = OllamaAdvisor(
             model=model, base_url=state.ollama_url, timeout=600
         ).design_baseline_setup(platform, supplied_control)
-        result = _sanitize_baseline_setup(response, control, model)
+        result = _sanitize_baseline_setup(response, control, model, platform)
         report_path = data_home() / "reports" / f"{target_name}-ai-baseline-setups.json"
         existing: dict[str, Any] = {}
         if report_path.is_file():

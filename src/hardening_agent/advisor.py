@@ -99,6 +99,7 @@ BASELINE_SETUP_SCHEMA = {
             "type": "string",
             "enum": ["apply", "review", "keep", "not_recommended"],
         },
+        "mechanism": {"type": "string"},
         "settings": {
             "type": "array",
             "items": {
@@ -120,6 +121,7 @@ BASELINE_SETUP_SCHEMA = {
     "required": [
         "summary",
         "recommendation",
+        "mechanism",
         "settings",
         "prerequisites",
         "operational_impact",
@@ -367,11 +369,14 @@ class OllamaAdvisor:
             "Du erstellst auf Deutsch einen sicheren, distributions- und versionsbezogenen "
             "Setup-Entwurf für genau eine gelieferte Linux-Baseline-Kontrolle. Verwende nur den "
             "gelieferten Prüfstatus, die gelieferten OpenSCAP-Regeln und Referenz-IDs. Erfinde "
-            "keine Systemzustände oder Quellen. settings enthält konkrete Konfigurationsparameter "
-            "und Sollwerte, aber keine Shell-Befehle. Berücksichtige Aussperrung, Netzwerk, Boot, "
-            "Verfügbarkeit und Serverrolle. Bei status=pass soll die bestehende wirksame Einstellung "
-            "beibehalten und validiert werden. Bei manual oder not_covered ist eine Betreiberprüfung "
-            "erforderlich. Formuliere kompakt und liefere höchstens 8 Settings sowie je 6 Prüf- und "
+            "keine Systemzustände oder Quellen. mechanism nennt nur den Namen des auf dieser "
+            "Distribution und Version üblichen Werkzeugs oder Subsystems für diese Kontrolle "
+            "(z. B. 'firewalld (firewall-cmd)' oder 'nftables'), ohne Befehlssyntax oder Optionen. "
+            "settings enthält konkrete Konfigurationsparameter und Sollwerte, aber keine "
+            "Shell-Befehle. Berücksichtige Aussperrung, Netzwerk, Boot, Verfügbarkeit und "
+            "Serverrolle. Bei status=pass soll die bestehende wirksame Einstellung beibehalten und "
+            "validiert werden. Bei manual oder not_covered ist eine Betreiberprüfung erforderlich. "
+            "Formuliere kompakt und liefere höchstens 8 Settings sowie je 6 Prüf- und "
             "Rollback-Schritte."
         )
         request_data = {

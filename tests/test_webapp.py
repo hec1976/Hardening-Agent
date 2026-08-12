@@ -130,6 +130,37 @@ def test_ai_hardening_review_rejects_invented_and_duplicate_rules() -> None:
     assert "keine KI-generierten Shell-Befehle" in result["guardrail"]
 
 
+def test_ai_baseline_setup_reports_platform_and_mechanism_without_commands() -> None:
+    result = webapp._sanitize_baseline_setup(
+        {
+            "summary": "Firewall aktivieren",
+            "recommendation": "apply",
+            "mechanism": "firewalld (firewall-cmd)",
+            "settings": [
+                {"name": "firewall_enabled", "value": "true", "reason": "Blockiert unerlaubten Zugriff"}
+            ],
+            "prerequisites": [],
+            "operational_impact": "Zugriffe werden eingeschränkt",
+            "validation_steps": ["Firewallstatus prüfen"],
+            "rollback_steps": ["Firewall deaktivieren"],
+            "warnings": [],
+        },
+        {
+            "id": "GLB-FW-001",
+            "title": "Firewall aktivieren",
+            "status": "manual",
+            "failed_rule_ids": [],
+        },
+        "qwen3:8b",
+        {"pretty_name": "openSUSE Leap 15.6", "distribution": "opensuse-leap", "version": "15.6"},
+    )
+
+    assert result["platform"] == "openSUSE Leap 15.6"
+    assert result["mechanism"] == "firewalld (firewall-cmd)"
+    assert "--" not in result["mechanism"]
+    assert result["implementation_mode"] == "operator_review"
+
+
 def test_ai_baseline_setup_uses_only_deterministic_failed_rules() -> None:
     real_rule = "xccdf_org.ssgproject.content_rule_sshd_disable_root_login"
     result = webapp._sanitize_baseline_setup(
@@ -200,7 +231,7 @@ def test_gui_uses_independent_full_benchmark_workflow() -> None:
 
     assert "Hersteller-Benchmark" in html
     assert "Separate Einordnung nach ANSSI, BSI und NIST" in html
-    assert "Alle Regeln des XCCDF-Datenstroms – unabhängig von standard" in html
+    assert "alle Regeln des XCCDF-Datenstroms" in html
     assert "scap_profile:" not in javascript
     assert 'id="full-scan"' in html
     assert "Hardening-Profil speichern" in javascript

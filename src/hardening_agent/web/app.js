@@ -362,13 +362,15 @@ function renderGuidelineSummary(guideline, checkSummary) {
   const scannerTitle = scanner.ready ? 'Scanner und Inhalte vorhanden' : (scanner.tool_ready ? 'Regelinhalte fehlen' : 'Scanner fehlt');
   addCard('NATIVE PRÜFUNG', scannerTitle, scanner.ready ? `${Object.keys(scanner.tools).join(', ')} · ${scanner.data_streams.length} Datenquellen · ${nativeRuleCount || '?'} SCAP-Regeln` : guideline.install_hint, scanner.ready ? 'covered' : 'gap');
   container.append(cards);
+  const relationshipDetails = document.createElement('details'); relationshipDetails.className = 'collapsible-guide';
+  const relationshipSummary = document.createElement('summary'); relationshipSummary.textContent = 'Woher stammen die Regeln?'; relationshipDetails.append(relationshipSummary);
   const relationship = document.createElement('div'); relationship.className = 'policy-relationship';
   const stages = [
     ['1', 'Herstellerquellen', `${guideline.documents.length} versionspassende Dokumente`, 'Beschreiben die Richtlinie, führen aber selbst keine Prüfung aus.'],
     ['2', 'Maschinenlesbarer Benchmark', scanner.ready ? `${nativeRuleCount || '?'} Regeln insgesamt` : 'OpenSCAP-Inhalt fehlt', 'Der Full Scan erstellt unabhängig von Herstellerprofilen ein eigenes Vollprofil mit allen Regeln.'],
     ['3', 'Ausgeführter Policy-Audit', guideline.scap_scan ? `${guideline.scap_scan.results} SCAP-Regeln geprüft` : 'Noch kein vollständiger Profil-Audit', 'Danach können die fehlgeschlagenen Regeln ausgewählt, gespeichert und gehärtet werden.']
   ];
-  stages.forEach(([number, titleText, value, explanation]) => { const stage = document.createElement('div'); const numberNode = document.createElement('span'); numberNode.textContent = number; const body = document.createElement('div'); const title = document.createElement('strong'); title.textContent = titleText; const count = document.createElement('b'); count.textContent = value; const note = document.createElement('small'); note.textContent = explanation; body.append(title, count, note); stage.append(numberNode, body); relationship.append(stage); }); container.append(relationship);
+  stages.forEach(([number, titleText, value, explanation]) => { const stage = document.createElement('div'); const numberNode = document.createElement('span'); numberNode.textContent = number; const body = document.createElement('div'); const title = document.createElement('strong'); title.textContent = titleText; const count = document.createElement('b'); count.textContent = value; const note = document.createElement('small'); note.textContent = explanation; body.append(title, count, note); stage.append(numberNode, body); relationship.append(stage); }); relationshipDetails.append(relationship); container.append(relationshipDetails);
   if (!scanner.ready && guideline.install_plan) {
     const install = document.createElement('div'); install.className = 'scanner-install';
     const info = document.createElement('div'); const title = document.createElement('strong'); const needsDebian13Content = guideline.platform.distribution === 'debian' && String(guideline.platform.version).split('.')[0] === '13' && !scanner.exact_stream_match; title.textContent = needsDebian13Content ? 'Passender Debian-13-SCAP-Inhalt fehlt' : scanner.tool_ready ? 'OpenSCAP-Regelinhalte fehlen' : 'OpenSCAP fehlt auf diesem Zielsystem';
@@ -390,6 +392,8 @@ function renderGuidelineSummary(guideline, checkSummary) {
     const warning = document.createElement('div'); warning.className = 'scanner-command'; const title = document.createElement('strong'); title.textContent = 'Keine auswertbaren SCAP-Profile erkannt'; const detail = document.createElement('p'); detail.textContent = 'Der Scanner ist vorhanden, aber aus dem Datenstrom konnten keine Profile gelesen werden. Paketinhalt oder Datenstrom bitte prüfen.'; warning.append(title, detail); container.append(warning);
   }
 
+  const lowerDetails = document.createElement('details'); lowerDetails.className = 'collapsible-guide';
+  const lowerSummary = document.createElement('summary'); lowerSummary.textContent = 'Quellen und Regelanzahl im Detail'; lowerDetails.append(lowerSummary);
   const lower = document.createElement('div'); lower.className = 'guideline-detail-grid';
   const sources = document.createElement('div'); const sourceTitle = document.createElement('strong'); sourceTitle.textContent = 'Zugeordnete Herstellerquellen'; sources.append(sourceTitle);
   guideline.documents.forEach(documentInfo => {
@@ -403,9 +407,11 @@ function renderGuidelineSummary(guideline, checkSummary) {
   const policyText = document.createElement('p'); policyText.textContent = scanner.ready ? `${nativeRuleCount || '?'} maschinenlesbare SCAP-Regeln erkannt. Der Full Scan wählt alle Regeln direkt aus dem Datenstrom aus.` : 'OpenSCAP oder der passende Hersteller-Datenstrom fehlt noch.'; policy.append(policyText);
   if (scanner.profiles.length) { const profiles = document.createElement('details'); profiles.className = 'native-profiles'; const summary = document.createElement('summary'); summary.textContent = `${scanner.profiles.length} erkannte Herstellerprofile anzeigen`; const list = document.createElement('ul'); scanner.profiles.forEach(profile => { const item = document.createElement('li'); item.textContent = profile; list.append(item); }); profiles.append(summary, list); policy.append(profiles); }
   if (scanner.sample_rules.length) { const rules = document.createElement('details'); rules.className = 'native-profiles'; const summary = document.createElement('summary'); summary.textContent = `${scanner.sample_rules.length} Regeln als technische Stichprobe anzeigen`; const note = document.createElement('p'); note.textContent = 'Nach dem Scan wird die vollständige Ergebnisliste mit echten Titeln und Auswahlfeldern angezeigt.'; const list = document.createElement('ul'); scanner.sample_rules.forEach(ruleId => { const item = document.createElement('li'); item.textContent = ruleId.replace('xccdf_org.ssgproject.content_rule_', ''); list.append(item); }); rules.append(summary, note, list); policy.append(rules); }
-  lower.append(sources, policy); container.append(lower);
+  lower.append(sources, policy); lowerDetails.append(lower); container.append(lowerDetails);
   if (guideline.scap_scan && state.scapResults.length) renderScapResults(container, guideline.scap_scan);
   renderGeneralLinuxBaseline(generalContainer, state.scapResults.filter(item => item.status === 'fail'));
+  const introGuide = document.getElementById('hardening-guide-steps');
+  if (introGuide) introGuide.open = false;
 }
 
 function renderPolicyOverview() {
@@ -427,7 +433,6 @@ function renderScapResults(container, scan) {
   const pending = results.filter(item => ['notselected', 'notchecked'].includes(item.status));
   const evaluated = results.length - pending.length;
   const section = document.createElement('div'); section.className = 'scap-results';
-  let advancedSelection = null;
   const head = document.createElement('div'); head.className = 'scap-results-head';
   const identity = document.createElement('div');
   const title = document.createElement('strong'); title.textContent = 'Ergebnis des vollständigen SCAP-Benchmarks';
@@ -451,14 +456,14 @@ function renderScapResults(container, scan) {
   }
 
   if (failed.length) {
-    const selection = document.createElement('details'); selection.className = 'policy-selection advanced-policy'; const advancedSummary = document.createElement('summary'); advancedSummary.textContent = 'Erweiterte OpenSCAP-Auswahl und Qwen-Priorisierung'; selection.append(advancedSummary); advancedSelection = selection;
+    const selectionPanel = document.createElement('div'); selectionPanel.className = 'policy-selection';
     const selectionTop = document.createElement('div'); selectionTop.className = 'policy-selection-top';
-    const selectionTitle = document.createElement('div'); const selectionStrong = document.createElement('strong'); selectionStrong.textContent = 'Wichtige Fehlschläge als Hardening-Profil speichern';
-    const selectionHint = document.createElement('p'); selectionHint.textContent = 'Gewünschte Regeln unten auswählen, einen Profilnamen eingeben und speichern.'; selectionTitle.append(selectionStrong, selectionHint);
+    const selectionTitle = document.createElement('div'); const selectionStrong = document.createElement('strong'); selectionStrong.textContent = 'Fehlschläge für das Hardening auswählen';
+    const selectionHint = document.createElement('p'); selectionHint.textContent = 'Gewünschte Regeln unten markieren, optional als Profil speichern und danach die Skripte erzeugen.'; selectionTitle.append(selectionStrong, selectionHint);
     const selectionActions = document.createElement('div'); const selectionCount = document.createElement('span'); selectionCount.id = 'policy-selection-count'; selectionCount.className = 'badge'; selectionCount.textContent = `${state.selectedPolicyRuleIds.size} ausgewählt`;
     const all = document.createElement('button'); all.type = 'button'; all.className = 'secondary'; all.textContent = 'Alle fehlgeschlagenen'; all.addEventListener('click', () => { state.selectedPolicyRuleIds = new Set(failed.map(item => item.id)); renderGuidelineSummary(state.lastGuideline, null); });
     const none = document.createElement('button'); none.type = 'button'; none.className = 'secondary'; none.textContent = 'Keine'; none.addEventListener('click', () => { state.selectedPolicyRuleIds.clear(); renderGuidelineSummary(state.lastGuideline, null); });
-    selectionActions.append(selectionCount, all, none); selectionTop.append(selectionTitle, selectionActions); selection.append(selectionTop);
+    selectionActions.append(selectionCount, all, none); selectionTop.append(selectionTitle, selectionActions); selectionPanel.append(selectionTop);
 
     const profileTools = document.createElement('div'); profileTools.className = 'policy-profile-tools';
     const saved = document.createElement('select'); saved.setAttribute('aria-label', 'Gespeichertes Auswahlprofil'); const empty = document.createElement('option'); empty.value = ''; empty.textContent = 'Gespeichertes Profil wählen'; saved.append(empty);
@@ -466,20 +471,8 @@ function renderScapResults(container, scan) {
     const load = document.createElement('button'); load.type = 'button'; load.className = 'secondary'; load.textContent = 'Profil laden'; load.addEventListener('click', () => { const profile = state.policyProfiles.find(item => item.id === saved.value); if (!profile) return; const available = new Set(failed.map(item => item.id)); state.selectedPolicyRuleIds = new Set(profile.rule_ids.filter(id => available.has(id))); renderGuidelineSummary(state.lastGuideline, null); toast(`${profile.name} geladen`); });
     const name = document.createElement('input'); name.placeholder = 'Name für neues Auswahlprofil'; name.setAttribute('aria-label', 'Profilname');
     const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Hardening-Profil speichern'; save.addEventListener('click', async () => { if (!name.value.trim()) { toast('Profilname eingeben'); return; } if (!state.selectedPolicyRuleIds.size) { toast('Mindestens eine fehlgeschlagene Regel auswählen'); return; } save.disabled = true; try { await api('/api/policy-profiles', { method: 'POST', body: JSON.stringify({ target: document.getElementById('build-target').value, name: name.value.trim(), profile: scan.profile, data_stream: scan.data_stream, rule_ids: Array.from(state.selectedPolicyRuleIds) }) }); await loadPolicyProfiles(); renderGuidelineSummary(state.lastGuideline, null); toast('Hardening-Profil gespeichert'); } catch (error) { toast(error.message); } finally { save.disabled = false; } });
-    profileTools.append(saved, load, name, save); selection.append(profileTools);
-    const ai = document.createElement('div'); ai.className = 'ai-hardening-review';
-    const aiHead = document.createElement('div'); aiHead.className = 'ai-hardening-head';
-    const aiTitle = document.createElement('div'); const aiStrong = document.createElement('strong'); aiStrong.textContent = 'KI-Hardening-Analyse'; const aiHint = document.createElement('p'); aiHint.textContent = 'Qwen priorisiert ausschliesslich die echten OpenSCAP-Fehlschläge. Die Auswahl bleibt unter deiner Kontrolle.'; aiTitle.append(aiStrong, aiHint);
-    const aiRun = document.createElement('button'); aiRun.type = 'button'; aiRun.className = 'secondary'; aiRun.textContent = state.hardeningReviewJobId ? 'Qwen analysiert …' : state.aiHardeningReview?.status === 'completed' ? 'Analyse erneut ausführen' : 'Mit Qwen priorisieren'; aiRun.disabled = Boolean(state.hardeningReviewJobId); aiRun.addEventListener('click', () => startHardeningReview());
-    aiHead.append(aiTitle, aiRun); ai.append(aiHead);
-    if (state.aiHardeningReview?.status === 'running') { const working = document.createElement('p'); working.className = 'ai-working'; working.textContent = `${state.aiHardeningReview.model || 'Qwen'} bewertet Risiko, Betriebswirkung und Prüfweg im Hintergrund …`; ai.append(working); }
-    if (state.aiHardeningReview?.status === 'failed') { const error = document.createElement('p'); error.className = 'ai-review-error'; error.textContent = state.aiHardeningReview.error; ai.append(error); }
-    if (state.aiHardeningReview?.status === 'completed') {
-      const review = state.aiHardeningReview; const summary = document.createElement('p'); summary.className = 'ai-review-summary'; summary.textContent = review.summary || 'Analyse abgeschlossen.'; ai.append(summary);
-      const controls = document.createElement('div'); controls.className = 'ai-review-controls'; const guardrail = document.createElement('span'); guardrail.textContent = `${review.model} · ${review.guardrail}`; const use = document.createElement('button'); use.type = 'button'; use.textContent = `KI-Vorschlag auswählen (${review.selected_rule_ids.length})`; use.disabled = !review.selected_rule_ids.length; use.addEventListener('click', () => { const available = new Set(failed.map(item => item.id)); state.selectedPolicyRuleIds = new Set(review.selected_rule_ids.filter(id => available.has(id))); renderGuidelineSummary(state.lastGuideline, null); toast('KI-Vorschlag übernommen – bitte vor dem Speichern prüfen'); }); controls.append(guardrail, use); ai.append(controls);
-      const recommendations = document.createElement('div'); recommendations.className = 'ai-recommendation-list'; review.recommendations.forEach(item => { const card = document.createElement('article'); card.className = `ai-recommendation ${item.priority}`; const header = document.createElement('div'); const label = document.createElement('strong'); label.textContent = item.title; const badge = document.createElement('span'); badge.textContent = `${item.priority} · ${item.disposition}`; header.append(label, badge); const reason = document.createElement('p'); reason.textContent = item.reason; const impact = document.createElement('small'); impact.textContent = `Betriebswirkung: ${item.operational_impact || 'manuell prüfen'} · Kontrolle danach: ${item.validation || 'OpenSCAP erneut ausführen'}`; card.append(header, reason, impact); recommendations.append(card); }); ai.append(recommendations);
-    }
-    selection.append(ai); section.append(selection);
+    profileTools.append(saved, load, name, save); selectionPanel.append(profileTools);
+    section.append(selectionPanel);
   } else {
     const clean = document.createElement('div'); clean.className = `scan-explanation${scan.applicability_status === 'incompatible' ? ' error' : ''}`; clean.textContent = scan.applicability_status === 'incompatible' ? 'Kein gültiges Härtungsergebnis: Bitte den exakt passenden SCAP-Datenstrom installieren und den Full Scan wiederholen.' : 'Im vollständigen Benchmark ist keine Regel fehlgeschlagen. Deshalb gibt es aktuell keine Hardening-Massnahme.'; section.append(clean);
   }
@@ -508,7 +501,23 @@ function renderScapResults(container, scan) {
     const actions = document.createElement('div'); actions.className = 'remediation-actions';
     const download = document.createElement('button'); download.type = 'button'; download.textContent = 'Skripte herunterladen'; download.addEventListener('click', () => buildSelectedPolicyPackage(download, scan.profile, scan.data_stream, 'download'));
     const stage = document.createElement('button'); stage.type = 'button'; stage.className = 'secondary'; stage.textContent = 'Nach /tmp übertragen'; stage.addEventListener('click', () => buildSelectedPolicyPackage(stage, scan.profile, scan.data_stream, 'stage'));
-    actions.append(download, stage); remediation.append(info, actions); (advancedSelection || section).append(remediation);
+    actions.append(download, stage); remediation.append(info, actions); section.append(remediation);
+
+    const aiDetails = document.createElement('details'); aiDetails.className = 'collapsible-guide ai-hardening-details';
+    const aiDetailsSummary = document.createElement('summary'); aiDetailsSummary.textContent = 'KI-Hardening-Analyse (optional, ergänzende Einschätzung von Qwen)'; aiDetails.append(aiDetailsSummary);
+    const ai = document.createElement('div'); ai.className = 'ai-hardening-review';
+    const aiHead = document.createElement('div'); aiHead.className = 'ai-hardening-head';
+    const aiTitle = document.createElement('div'); const aiStrong = document.createElement('strong'); aiStrong.textContent = 'KI-Hardening-Analyse'; const aiHint = document.createElement('p'); aiHint.textContent = 'Qwen priorisiert ausschliesslich die echten OpenSCAP-Fehlschläge und dient nur als Zusatzeinschätzung. Die Auswahl oben bleibt vollständig unter deiner Kontrolle.'; aiTitle.append(aiStrong, aiHint);
+    const aiRun = document.createElement('button'); aiRun.type = 'button'; aiRun.className = 'secondary'; aiRun.textContent = state.hardeningReviewJobId ? 'Qwen analysiert …' : state.aiHardeningReview?.status === 'completed' ? 'Analyse erneut ausführen' : 'Mit Qwen priorisieren'; aiRun.disabled = Boolean(state.hardeningReviewJobId); aiRun.addEventListener('click', () => startHardeningReview());
+    aiHead.append(aiTitle, aiRun); ai.append(aiHead);
+    if (state.aiHardeningReview?.status === 'running') { const working = document.createElement('p'); working.className = 'ai-working'; working.textContent = `${state.aiHardeningReview.model || 'Qwen'} bewertet Risiko, Betriebswirkung und Prüfweg im Hintergrund …`; ai.append(working); }
+    if (state.aiHardeningReview?.status === 'failed') { const error = document.createElement('p'); error.className = 'ai-review-error'; error.textContent = state.aiHardeningReview.error; ai.append(error); }
+    if (state.aiHardeningReview?.status === 'completed') {
+      const review = state.aiHardeningReview; const summary = document.createElement('p'); summary.className = 'ai-review-summary'; summary.textContent = review.summary || 'Analyse abgeschlossen.'; ai.append(summary);
+      const controls = document.createElement('div'); controls.className = 'ai-review-controls'; const guardrail = document.createElement('span'); guardrail.textContent = `${review.model} · ${review.guardrail}`; const use = document.createElement('button'); use.type = 'button'; use.textContent = `KI-Vorschlag auswählen (${review.selected_rule_ids.length})`; use.disabled = !review.selected_rule_ids.length; use.addEventListener('click', () => { const available = new Set(failed.map(item => item.id)); state.selectedPolicyRuleIds = new Set(review.selected_rule_ids.filter(id => available.has(id))); renderGuidelineSummary(state.lastGuideline, null); toast('KI-Vorschlag übernommen – bitte vor dem Speichern prüfen'); }); controls.append(guardrail, use); ai.append(controls);
+      const recommendations = document.createElement('div'); recommendations.className = 'ai-recommendation-list'; review.recommendations.forEach(item => { const card = document.createElement('article'); card.className = `ai-recommendation ${item.priority}`; const header = document.createElement('div'); const label = document.createElement('strong'); label.textContent = item.title; const badge = document.createElement('span'); badge.textContent = `${item.priority} · ${item.disposition}`; header.append(label, badge); const reason = document.createElement('p'); reason.textContent = item.reason; const impact = document.createElement('small'); impact.textContent = `Betriebswirkung: ${item.operational_impact || 'manuell prüfen'} · Kontrolle danach: ${item.validation || 'OpenSCAP erneut ausführen'}`; card.append(header, reason, impact); recommendations.append(card); }); ai.append(recommendations);
+    }
+    aiDetails.append(ai); section.append(aiDetails);
   }
   container.append(section);
 }
@@ -588,15 +597,16 @@ function renderBaselineSetup(card, control, failedRules) {
   if (!setup) return;
   if (setup.status === 'failed') { const error = document.createElement('p'); error.className = 'baseline-setup-error'; error.textContent = setup.error; card.append(error); return; }
   const panel = document.createElement('details'); panel.className = 'baseline-ai-setup'; panel.open = true;
-  const summary = document.createElement('summary'); const labels = { apply: 'Anwenden empfohlen', review: 'Betreiberprüfung', keep: 'Beibehalten', not_recommended: 'Nicht empfohlen' }; summary.textContent = `KI-Setup · ${labels[setup.recommendation] || setup.recommendation}`; panel.append(summary);
+  const summary = document.createElement('summary'); const labels = { apply: 'Anwenden empfohlen', review: 'Betreiberprüfung', keep: 'Beibehalten', not_recommended: 'Nicht empfohlen' }; summary.textContent = `KI-Setup${setup.platform ? ' · ' + setup.platform : ''} · ${labels[setup.recommendation] || setup.recommendation}`; panel.append(summary);
   const intro = document.createElement('p'); intro.textContent = setup.summary; panel.append(intro);
+  if (setup.mechanism) { const mechanism = document.createElement('p'); mechanism.className = 'baseline-setup-mechanism'; const mechanismLabel = document.createElement('strong'); mechanismLabel.textContent = 'Übliches Werkzeug: '; mechanism.append(mechanismLabel, document.createTextNode(setup.mechanism)); panel.append(mechanism); }
   if (setup.settings.length) { const settings = document.createElement('div'); settings.className = 'baseline-setup-settings'; setup.settings.forEach(item => { const row = document.createElement('div'); const name = document.createElement('strong'); name.textContent = item.name; const value = document.createElement('code'); value.textContent = item.value; const reason = document.createElement('span'); reason.textContent = item.reason; row.append(name, value, reason); settings.append(row); }); panel.append(settings); }
   appendSetupList(panel, 'Voraussetzungen', setup.prerequisites);
   if (setup.operational_impact) { const impact = document.createElement('p'); impact.className = 'baseline-setup-impact'; impact.textContent = `Betriebswirkung: ${setup.operational_impact}`; panel.append(impact); }
   appendSetupList(panel, 'Prüfung danach', setup.validation_steps);
   appendSetupList(panel, 'Rücknahme', setup.rollback_steps);
   appendSetupList(panel, 'Warnungen', setup.warnings);
-  const guardrail = document.createElement('small'); guardrail.textContent = `${setup.model} · ${setup.guardrail}`; panel.append(guardrail);
+  const guardrail = document.createElement('small'); guardrail.textContent = `${setup.model}${setup.platform ? ' · ' + setup.platform : ''} · ${setup.guardrail}`; panel.append(guardrail);
   if (setup.implementation_mode === 'openscap' && setup.rule_ids.length) { const select = document.createElement('button'); select.type = 'button'; select.textContent = 'Geprüfte Regeln in Hardening-Auswahl übernehmen'; select.addEventListener('click', () => { const available = new Set(failedRules.map(item => item.id)); setup.rule_ids.filter(id => available.has(id)).forEach(id => state.selectedPolicyRuleIds.add(id)); renderGuidelineSummary(state.lastGuideline, null); toast('OpenSCAP-Regeln übernommen – Auswahl vor dem Export prüfen'); }); panel.append(select); }
   card.append(panel);
 }
@@ -872,8 +882,9 @@ function renderFullScanResult(payload) {
   const report = payload.report; const engines = report.engines; const container = document.getElementById('full-scan-results'); container.replaceChildren();
   const card = (title, engine, detail) => { const item = document.createElement('article'); const heading = document.createElement('strong'); heading.textContent = title; const status = document.createElement('span'); status.className = `scan-engine-status ${engine.status}`; status.textContent = engine.status; const text = document.createElement('p'); text.textContent = detail; item.append(heading, status, text); container.append(item); };
   const configuration = engines.configuration || {}; const cc = configuration.counts || {};
-  const configurationDisplay = configuration.coverage_status === 'partial' ? { ...configuration, status: 'partial' } : configuration;
-  card('Vollständiger Konfigurations-Benchmark', configurationDisplay, configuration.message || `${cc.pass || 0} bestanden · ${cc.fail || 0} nicht bestanden · ${cc.notapplicable || 0} nicht anwendbar · ${cc.notselected || 0} nicht ausgewählt · ${cc.notchecked || 0} nicht geprüft · ${configuration.supplemental_rules || 0} Zusatzregeln bewertet`);
+  if (configuration.status && configuration.status !== 'completed') {
+    card('Konfigurations-Benchmark', configuration, configuration.message || `${cc.pass || 0} bestanden · ${cc.fail || 0} nicht bestanden`);
+  }
   const vulnerabilities = engines.vulnerabilities || {}; const vc = vulnerabilities.counts || {};
   card('Schwachstellen und Patches', vulnerabilities, vulnerabilities.message || `${vc.affected || 0} betroffen · ${vc.not_affected || 0} nicht betroffen · ${(vc.unknown || 0) + (vc.error || 0)} unklar`);
   state.vulnerabilityResults = vulnerabilities.results || [];
@@ -959,7 +970,24 @@ document.getElementById('guideline-source-form').addEventListener('submit', asyn
 });
 document.getElementById('load-controls').addEventListener('click', loadApplicableControls);
 document.getElementById('full-scan').addEventListener('click', startFullScan);
+document.getElementById('reset-hardening').addEventListener('click', resetHardeningWorkflow);
 document.getElementById('build-target').addEventListener('change', () => { state.lastGuideline = null; state.scapResults = []; state.generalBaseline = null; state.generalBaselineCategories = null; state.baselineSetups.clear(); state.baselineSetupJobs.clear(); state.selectedBaselineControlIds.clear(); state.baselinePlan = null; state.selectedPolicyRuleIds.clear(); state.selectedAuditRuleIds.clear(); renderReport(); });
+
+function resetHardeningWorkflow() {
+  state.fullScanJobId = null; state.lastGuideline = null; state.scapResults = []; state.vulnerabilityResults = [];
+  state.selectedPolicyRuleIds.clear(); state.selectedAuditRuleIds.clear(); state.aiHardeningReview = null;
+  state.generalBaseline = null; state.generalBaselineCategories = null; state.baselineSetups.clear(); state.baselineSetupJobs.clear();
+  state.selectedBaselineControlIds.clear(); state.baselinePlan = null;
+  document.getElementById('guideline-summary').replaceChildren(); const guidelinePlaceholder = document.createElement('div'); guidelinePlaceholder.className = 'control-placeholder'; guidelinePlaceholder.textContent = 'Ziel wählen. Danach erkennt der Agent Betriebssystem, Version und den vollständigen SCAP-Benchmark.'; document.getElementById('guideline-summary').append(guidelinePlaceholder);
+  document.getElementById('general-hardening-summary').replaceChildren(); const generalPlaceholder = document.createElement('div'); generalPlaceholder.className = 'control-placeholder'; generalPlaceholder.textContent = 'Nach dem Full Scan werden hier allgemeine Linux-Empfehlungen, Systemrolle und Paketerstellung angezeigt.'; document.getElementById('general-hardening-summary').append(generalPlaceholder);
+  document.getElementById('full-scan-results').replaceChildren();
+  document.getElementById('full-scan-badge').textContent = 'Bereit';
+  document.getElementById('full-scan-progress').style.width = '0%';
+  document.getElementById('full-scan-stage').textContent = 'Zuerst das System erkennen, damit das passende OpenSCAP-Profil gewählt werden kann.';
+  renderReport();
+  activity('Hardening-Ablauf zurückgesetzt');
+  toast('Zurückgesetzt');
+}
 
 function updateTargetMode() {
   const local = document.getElementById('target-mode-local').checked;
