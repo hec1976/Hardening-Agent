@@ -161,11 +161,13 @@ Mehrere Baseline-Einträge werden serverseitig zu einem Plan zusammengeführt. D
 Das exportierte Paket enthält `apply-native-policy.sh`, `verify-native-policy.sh` und
 `restore-native-policy.sh`. Apply prüft zuerst die SHA-256-Summen, sichert statisch erkennbare
 Konfigurationspfade unter `/var/backups/linux-hardening-agent` und erfasst den Paketbestand.
-Restore stellt diese Dateien bestmöglich wieder her. Generierte Skripte bleiben inert, bis der
-Betreiber sie getrennt mit dem dokumentierten `--apply`- oder `--rollback`-Flag ausführt.
-Paketinstallationen, Bootzustand, Laufzeitparameter und Dienstzustände lassen sich nicht
-universell zurückrollen; auf produktiven Systemen bleiben Snapshot/Backup und getesteter
-Konsolenzugang deshalb Pflicht.
+Restore stellt diese Dateien bestmöglich wieder her. Die drei Skripte sind eigenständige Dateien,
+kein Skript mit Modus-Flag: Hochladen führt nichts aus, der Betreiber startet jeden Schritt
+getrennt und ausdrücklich mit `sudo ./apply-native-policy.sh`, danach `sudo
+./verify-native-policy.sh`, im Problemfall `sudo ./restore-native-policy.sh` gefolgt von
+erneuter Prüfung. Paketinstallationen, Bootzustand, Laufzeitparameter und Dienstzustände lassen
+sich nicht universell zurückrollen; auf produktiven Systemen bleiben Snapshot/Backup und
+getesteter Konsolenzugang deshalb Pflicht.
 
 ## Allgemeine Linux-Baseline
 
@@ -194,10 +196,17 @@ Ergebnisse des installierten OpenSCAP-Datenstroms und keine Zertifizierung.
 `python3-wheel` und `shellcheck`, optional auch Ollama selbst (`--install-ollama`, `--pull-model`,
 `--optimize-ollama`).
 
-**Zielsystem:** `openscap-scanner` und das passende SCAP-Inhaltspaket müssen dort vorhanden oder
-per KI-Setup-Entwurf installierbar sein, distributionsabhängig `scap-security-guide` (RHEL/Fedora/
-openSUSE-Familie über `dnf`), `ssg-debian` (Debian) oder `ssg-debderived` (Debian-Derivate) über
-`apt-get`. Fehlt eines dieser Pakete, zeigt die GUI den passenden Installationsbefehl an.
+**Zielsystem:** ein OpenSCAP-Scanner und das passende SCAP-Inhaltspaket müssen dort vorhanden oder
+über die GUI installierbar sein, distributionsabhängig:
+
+| Distribution | Pakete | Befehl |
+| --- | --- | --- |
+| RHEL, Rocky, AlmaLinux, Oracle Linux | `openscap-scanner`, `scap-security-guide` | `dnf` |
+| SLES, SLED, openSUSE Leap/Tumbleweed | `openscap-utils`, `scap-security-guide` | `zypper` |
+| Debian | `openscap-scanner`, `ssg-debian` | `apt-get` |
+| Ubuntu und weitere Debian-Derivate | `openscap-scanner`, `ssg-debderived` | `apt-get` |
+
+Fehlt eines dieser Pakete, zeigt die GUI den passenden Installationsbefehl an.
 
 ## Installation
 
@@ -209,8 +218,11 @@ Als normaler Benutzer im Projektverzeichnis:
 ./scripts/install-local.sh
 ```
 
-Das Setup erstellt `.venv`, aktualisiert `pip`, `setuptools` und `wheel`, installiert den Agenten
-und prüft optionale Werkzeuge. Danach:
+Das Setup erstellt `.venv`, aktualisiert `pip`, `setuptools` und `wheel`, installiert den Agenten,
+fragt bei vorhandenem Ollama interaktiv nach `qwen3:8b`, `qwen3:14b`, beiden oder keinem Modell
+(nicht-interaktiv steuerbar über `LHA_INSTALL_MODELS=qwen3:8b`, `...,qwen3:14b` oder `none`), und
+prüft bei installiertem Vagrant die Eigentümerschaft privater Schlüssel. Verweigert die Ausführung
+als root. Danach:
 
 ```bash
 ./scripts/start-gui.sh --model qwen3:8b
@@ -289,20 +301,24 @@ dass das System betroffen ist; diese Statusarten werden getrennt dargestellt.
 [#cli](#cli)
 
 ```text
-hardening-agent [--model MODEL] [--ollama-url URL] [--version]
+hardening-agent [--version]
 
 hardening-agent target add NAME [--host HOST] [--user USER] [--port PORT]
     [--identity-file PATH] [--local] [--vm-name NAME] [--libvirt-uri URI]
 hardening-agent target list
 
 hardening-agent audit TARGET [--output PATH]
-hardening-agent doctor
+hardening-agent doctor [--model MODEL] [--ollama-url URL]
 hardening-agent snapshot TARGET
 hardening-agent vagrant-access [--operator USER]
 
 hardening-agent gui [--host HOST] [--port PORT] [--output PATH]
     [--libvirt-uri URI] [--no-browser] [--allow-root] [--allow-remote]
+    [--model MODEL] [--ollama-url URL]
 ```
+
+`--model` (Default `qwen3:14b`) und `--ollama-url` (Default `http://127.0.0.1:11434`) gehören zu
+`doctor` und `gui`, nicht zum globalen `hardening-agent`-Aufruf selbst.
 
 Beispiele:
 
@@ -324,8 +340,10 @@ hardening-agent gui --no-browser --model qwen3:8b
 - GUI bindet standardmässig nur an `127.0.0.1` und verweigert Root-Betrieb, sofern nicht
   ausdrücklich `--allow-root` gesetzt wird.
 - Zustandsändernde API-Aufrufe und Downloads benötigen ein zufälliges, pro Prozess erzeugtes
-  Token, lokale `Host`-Header werden validiert, JSON-Anfragegrössen sind begrenzt, und die GUI
-  sendet restriktive Browser-Sicherheits-Header.
+  Token (per `X-LHA-CSRF`-Header, konstante-Zeit-Vergleich), lokale `Host`-Header werden
+  validiert, JSON-Anfragen sind auf `Content-Type: application/json` und 64 KiB begrenzt, und die
+  GUI sendet restriktive Browser-Sicherheits-Header (`Content-Security-Policy`,
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`).
 - `--allow-remote` hebt die Loopback-Bindung auf. Die GUI besitzt weiterhin keine
   Konto-Authentifizierung und kein TLS; dieses Flag sollte nicht in einem nicht
   vertrauenswürdigen Netzwerk verwendet werden.
@@ -336,8 +354,9 @@ hardening-agent gui --no-browser --model qwen3:8b
 - SSH läuft über den System-OpenSSH-Client mit aktivierter Host-Key-Prüfung.
 - Passwörter und private SSH-Schlüssel werden nie an Ollama gesendet; Qwen erhält ausschliesslich
   Quellmetadaten und fehlgeschlagene Baseline-Zuordnungen als Kontext, keine ausführbaren Inhalte.
-- Massnahmen benötigen eine ausdrückliche Auswahl und Bestätigung; generierte Skripte bleiben
-  inert, bis sie separat mit `--apply` oder `--rollback` ausgeführt werden.
+- Massnahmen benötigen eine ausdrückliche Auswahl und Bestätigung; ein Hochladen aufs Ziel führt
+  nichts aus, Apply, Verify und Restore sind getrennte Skripte, die der Betreiber einzeln und
+  ausdrücklich mit `sudo` startet.
 - Vor produktiver Anwendung sind Snapshot/Backup und Konsolenzugang erforderlich.
 - Sicherheitslücken (Command-Injection, Privilege-Escalation, Secret-Disclosure, unsicheres
   Rollback, Remote-Lockout) bitte nicht als öffentliches Issue melden, sondern den Maintainer
