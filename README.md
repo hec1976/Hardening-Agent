@@ -7,26 +7,98 @@ Der Agent besitzt keinen eigenen festen Hardening-Regelkatalog. Der Prüfumfang 
 zur erkannten Distribution und Hauptversion passenden SCAP-Datenstrom. Der Full Scan erstellt
 daraus ein unabhängiges Vollprofil und versucht alle Regeln des Benchmarks auszuwerten.
 
+Status: Alpha (Version 0.17.0). Kein Zertifizierungsprodukt, siehe [Sicherheit](#sicherheit).
+
+## Architektur
+
+[#architektur](#architektur)
+
+- **CLI und lokale Web-GUI:** Die CLI verwaltet Ziele, Inventare, Diagnose und GUI-Start. Der
+  eingebaute Webserver (Python-Standardbibliothek) stellt den kompletten Scan-Ablauf nur auf
+  Loopback bereit. Verändernde Aufrufe und Downloads benötigen ein zufälliges, pro Prozess
+  erzeugtes Token. Root-Betrieb und Nicht-Loopback-Bindung werden ohne explizite Option verweigert.
+- **Transport und Ziel-Inventar:** lokale Ziele laufen über eine lokale Shell, SSH-Ziele über den
+  System-OpenSSH-Client, Vagrant-Ziele über die Vagrant-CLI im erkannten Projektverzeichnis. Der
+  Collector führt ein statisches, read-only Inventar-Skript aus und erfasst Plattform, Dienste,
+  Netzwerk, Mounts, SSH, LSM, Audit, Sysctl, Updates und installierte Compliance-Werkzeuge.
+- **OpenSCAP/XCCDF-Engine:** die Inventur erkennt installierte Datenströme und Profile. Der Full
+  Scan liest alle Regel-IDs direkt aus dem gewählten Datenstrom und erzeugt daraus ein
+  unabhängiges, temporäres XCCDF-Profil, das jede Regel auswählt, statt das Vendor-Profil
+  `standard` zu erweitern. Ausgewählte fehlgeschlagene Regeln werden als wiederverwendbares
+  Auswahlprofil gespeichert; die selektive Remediation deselektiert in einem temporären
+  Tailoring-Profil explizit jede nicht gewählte Regel, scannt die freigegebene Auswahl erneut und
+  lässt OpenSCAP daraus Bash-Fixes generieren. Der Agent verpackt das generierte Skript, führt es
+  aber nie automatisch aus.
+- **OVAL-Schwachstellen-Engine:** offizielle, distributionsspezifische Vulnerability-Feeds werden
+  auf dem Agent-Host zwischengespeichert, gehasht und auf dem Ziel ausgewertet. Ein OVAL-Ergebnis
+  `true` bedeutet betroffen und wird bewusst nicht wie ein XCCDF `pass` dargestellt.
+- **Leitfaden-Quellen und Ollama:** offizielle Quellzuordnungen enthalten Herausgeber,
+  Distribution, Versionsmuster, Prüfdatum und Kategorie. Die Online-Erkennung akzeptiert nur
+  HTTPS-Treffer aus einer distributionsspezifischen Vendor-Allowlist. Qwen darf Quellenabdeckung
+  zusammenfassen und Kandidaten einordnen, aber keine ausführbaren Regeln erzeugen oder
+  privilegierten Code ausführen.
+- **Allgemeine Linux-Baseline:** eine deterministische Interpretationsschicht über dem letzten
+  Full Scan. Ein kuratierter Katalog bildet distributionsübergreifende Empfehlungen aus ANSSI
+  BP-028, BSI SYS.1.3 und NIST SP 800-123 auf passende XCCDF-Regel-IDs ab, ohne das Scanner-
+  Ergebnis zu ersetzen oder zu verändern.
+- **Berichte und Pakete:** das Berichtspaket enthält HTML, JSON, die gespeicherte allgemeine
+  Baseline und SHA-256-Prüfsummen. Ein selektives Remediation-Paket enthält die gewählten
+  Regel-IDs, den ursprünglichen Scan-Beleg, das temporäre Tailoring, den OpenSCAP-generierten Fix,
+  ein Verify-Skript und Prüfsummen. Es kann heruntergeladen oder in ein privates, zufällig
+  benanntes `/tmp`-Verzeichnis auf dem Ziel hochgeladen werden; das Hochladen führt nichts aus,
+  die GUI zeigt die expliziten Apply- und Verify-Befehle an.
+
+Datenfluss:
+
+```text
+Ziel -> read-only Inventar -> erkanntes Vendor-Profil -> vollständiger OpenSCAP-Scan
+     -> allgemeine Linux-Baseline-Zuordnung -> Betreiber wählt fehlgeschlagene Regeln
+     -> gespeichertes Auswahlprofil -> frischer Scan der Auswahl -> OpenSCAP-Fix-Generierung
+     -> prüfbares ZIP
+```
+
+Die GUI selbst benötigt kein Root. Manche OpenSCAP-Lesevorgänge und jede Remediation brauchen
+Rechte auf dem Ziel; diese Vorgänge verlangen eine ausdrückliche Bestätigung. Snapshot/Backup und
+Konsolenzugang bleiben die Rollback-Grenze.
+
+Ausführliche Fassung: [`docs/architecture.md`](docs/architecture.md).
+
 ## Bedrohungsmodell
 
 [#bedrohungsmodell](#bedrohungsmodell)
 
-Der Agent unterscheidet drei Vertrauensbereiche:
+**Geschützte Werte:** Verfügbarkeit und administrativer Zugriff auf das Zielsystem, SSH-
+Schlüssel und Zugangsdaten, Systemkonfiguration und Prüfnachweise, Integrität der erzeugten
+Remediation-Pakete, autoritative Hersteller-Policy- und Quellzuordnung.
 
-- **Agent-Host:** führt die GUI und die Auswertung aus, hält Inventar und Scanberichte lokal.
-  Angenommener Angreifer: ein Prozess oder Benutzer ohne Zugriff auf das GUI-Sitzungstoken.
-  Nicht abgedeckt: ein bereits kompromittierter Agent-Host selbst, dieser gilt als vertrauenswürdig.
-- **Ziel (lokal, SSH, Vagrant, KVM):** wird ausschliesslich read-only gescannt, bis der Betreiber
-  ein Massnahmenpaket ausdrücklich erstellt und überträgt. Angenommener Angreifer: ein Ziel, das
-  während des Scans manipulierte Antworten liefert. Root-Rechte werden nur dort angefordert, wo
-  OpenSCAP oder eine bestätigte Massnahme sie zwingend benötigt.
-- **Externe Quellen (SCAP-/OVAL-Feeds, ComplianceAsCode-Archiv):** werden als potenziell
-  kompromittierbar behandelt und deshalb per Prüfsumme verifiziert, bevor Inhalte an ein Ziel
-  gehen. Siehe Einschränkung zur Authentizität unten.
+**Hauptbedrohungen:** Prompt-Injection über Hostnamen, Banner, Logs oder Konfiguration;
+Halluzination des Sprachmodells; Command-Injection über Parameter; manipulierte SCAP-Inhalte,
+Berichte oder generierte Pakete; bösartige Substitution des SSH-Hosts; Aussperren eines
+Remote-Administrators; unvollständiges Rollback; Geheimnisse, die in Prompts oder Logs gelangen;
+Browser-Anfragen, die eine privilegierte oder remote erreichbare GUI treffen.
 
-Ausserhalb des Bedrohungsmodells liegen: ein root-kompromittierter Agent-Host, ein bösartiger
-lokaler Mehrbenutzer-Betrieb ohne zusätzliche Betriebssystem-Isolation, und ein Ziel, das schon
-vor dem ersten Scan vollständig durch den Angreifer kontrolliert wird.
+**Massnahmen:** Das Inventar gilt als nicht vertrauenswürdige Eingabe. Modellausgaben sind auf
+Quellenprüfung und Kandidatenreihung beschränkt. Ausgewählte Remediation-IDs werden erneut gegen
+die aktuellsten fehlgeschlagenen Scan-Ergebnisse geprüft. Die Remediation-Shell wird von der
+installierten OpenSCAP-Policy aus einem frischen Ergebnis erzeugt. SSH-Host-Keys werden geprüft.
+Root-Ausführung ist separat und explizit. Datei-Backups und Verify-Skripte werden generiert.
+Paket-Prüfsummen erkennen nachträgliche, unbeabsichtigte Änderungen. Die GUI bindet standardmässig
+an Loopback, verweigert Root, validiert lokale Host-Header, verlangt ein pro-Prozess-Token für
+verändernde Aufrufe und Downloads, begrenzt Anfragegrössen und besitzt keinen Endpunkt, der
+Hardening direkt anwendet.
+
+**Restrisiken:** Herstellerinhalte oder generierte Remediation können weiterhin einen
+Implementierungsfehler enthalten. Distributions-Updates können das Konfigurationsverhalten
+ändern. Paketinstallationen lassen sich durch Datei-Wiederherstellung nicht vollständig
+rückgängig machen. KVM-Snapshots können bei aktiven Anwendungen inkonsistent sein. Ein lokaler
+Angreifer mit Kontrolle über Repository oder Python-Umgebung kann generierte Ausgaben verändern.
+SHA-256-Prüfsummen sind Integritäts-, keine Signaturhilfen. Die GUI besitzt keine
+Konto-Authentifizierung und kein TLS und ist nicht für direkte Netzwerk-Exposition gedacht.
+
+Für Produktivbetrieb: Releases signieren, SCAP-Pakete verifizieren, von einem dedizierten
+Verwaltungshost aus betreiben und eine unabhängige Konfigurations-/Compliance-Prüfung einsetzen.
+
+Ausführliche Fassung: [`docs/threat-model.md`](docs/threat-model.md).
 
 ## Arbeitsablauf
 
@@ -89,13 +161,11 @@ Mehrere Baseline-Einträge werden serverseitig zu einem Plan zusammengeführt. D
 Das exportierte Paket enthält `apply-native-policy.sh`, `verify-native-policy.sh` und
 `restore-native-policy.sh`. Apply prüft zuerst die SHA-256-Summen, sichert statisch erkennbare
 Konfigurationspfade unter `/var/backups/linux-hardening-agent` und erfasst den Paketbestand.
-Restore stellt diese Dateien bestmöglich wieder her. Paketinstallationen, Bootzustand,
-Laufzeitparameter und Dienstzustände lassen sich nicht universell zurückrollen. Das ist eine
-bewusste Risikoakzeptanz und keine technische Lücke, die noch geschlossen werden soll: eine
-vollständige Rückrollbarkeit auf Betriebssystemebene würde den Agenten in einen vollwertigen
-Konfigurationsmanagement-Systemzustand-Tracker verwandeln, was ausserhalb des Projektumfangs
-liegt. Auf produktiven Systemen bleiben Snapshot/Backup und getesteter Konsolenzugang deshalb
-Pflicht, aktuell durchgesetzt als Betriebsanweisung und nicht technisch blockierend vor dem Apply.
+Restore stellt diese Dateien bestmöglich wieder her. Generierte Skripte bleiben inert, bis der
+Betreiber sie getrennt mit dem dokumentierten `--apply`- oder `--rollback`-Flag ausführt.
+Paketinstallationen, Bootzustand, Laufzeitparameter und Dienstzustände lassen sich nicht
+universell zurückrollen; auf produktiven Systemen bleiben Snapshot/Backup und getesteter
+Konsolenzugang deshalb Pflicht.
 
 ## Allgemeine Linux-Baseline
 
@@ -113,26 +183,42 @@ Baseline-Punkt wird als bestanden, fehlgeschlagen, nicht anwendbar, manuell, tec
 abgedeckt oder technische Lücke ausgewiesen. Die Zuordnung ist ein transparentes Mapping auf die
 Ergebnisse des installierten OpenSCAP-Datenstroms und keine Zertifizierung.
 
+## Voraussetzungen
+
+[#voraussetzungen](#voraussetzungen)
+
+**Agent-Host:** Python 3.11 oder neuer, keine Python-Laufzeitabhängigkeiten (nur `pytest` und
+`ruff` für die Entwicklung). Für Debian/Ubuntu als Agent-Host installiert
+`scripts/bootstrap-debian.sh` zusätzlich `ca-certificates`, `curl`, `git`, `jq`,
+`libvirt-clients`, `openssh-client`, `passwd`, `python3`, `python3-setuptools`, `python3-venv`,
+`python3-wheel` und `shellcheck`, optional auch Ollama selbst (`--install-ollama`, `--pull-model`,
+`--optimize-ollama`).
+
+**Zielsystem:** `openscap-scanner` und das passende SCAP-Inhaltspaket müssen dort vorhanden oder
+per KI-Setup-Entwurf installierbar sein, distributionsabhängig `scap-security-guide` (RHEL/Fedora/
+openSUSE-Familie über `dnf`), `ssg-debian` (Debian) oder `ssg-debderived` (Debian-Derivate) über
+`apt-get`. Fehlt eines dieser Pakete, zeigt die GUI den passenden Installationsbefehl an.
+
 ## Installation
 
 [#installation](#installation)
 
 Als normaler Benutzer im Projektverzeichnis:
 
-```
+```bash
 ./scripts/install-local.sh
 ```
 
 Das Setup erstellt `.venv`, aktualisiert `pip`, `setuptools` und `wheel`, installiert den Agenten
 und prüft optionale Werkzeuge. Danach:
 
-```
+```bash
 ./scripts/start-gui.sh --model qwen3:8b
 ```
 
 Wenn bereits eine ältere GUI auf Port 8765 läuft:
 
-```
+```bash
 ./scripts/restart-gui.sh --model qwen3:8b
 ```
 
@@ -140,25 +226,33 @@ Die GUI ist unter `http://127.0.0.1:8765` erreichbar. Sie soll nicht als root ge
 Root-Rechte werden nur auf dem Ziel und nur dort angefordert, wo OpenSCAP oder eine ausdrücklich
 bestätigte Massnahme sie benötigt.
 
+Für einen dauerhaften Betrieb als Benutzerdienst:
+
+```bash
+./scripts/install-gui-service.sh
+```
+
+Richtet `linux-hardening-agent-gui.service` unter `systemd --user` ein. Das Skript verweigert die
+Ausführung als root.
+
 Debian 13 enthält im stabilen Paket `ssg-debian` 0.1.76 noch keinen Debian-13-Datenstrom. Die GUI
 verwendet niemals ersatzweise den Debian-12-Benchmark. Nach ausdrücklicher Bestätigung lädt der
 Agent den vorgebauten offiziellen ComplianceAsCode-0.1.81-Inhalt, prüft die veröffentlichte
 SHA-512-Summe und überträgt nur `ssg-debian13-ds.xml` auf das Ziel. Das vollständige Archiv wird
-nur auf dem Agent-Rechner zwischengespeichert. Die SHA-512-Prüfung stellt Übertragungsintegrität
-sicher, ist aber keine Authentizitätsprüfung: wird die Quelle selbst kompromittiert, könnten Datei
-und veröffentlichte Summe gemeinsam ausgetauscht werden. Eine Signaturprüfung des Archivs ist
-derzeit nicht implementiert und als bekannte Einschränkung dokumentiert statt stillschweigend
-vorausgesetzt.
+nur auf dem Agent-Rechner zwischengespeichert. Die SHA-512-Prüfung sichert die
+Übertragungsintegrität; sie ist keine Signaturprüfung der Quelle, siehe Restrisiken im
+Bedrohungsmodell.
 
 ## Ollama
 
 [#ollama](#ollama)
 
-Für eine 8-GB-GPU ist `qwen3:8b` die praktische Voreinstellung. Installierte Modelle können in
-der GUI ausgewählt werden. Die Compliance-Bewertung selbst bleibt deterministisch und funktioniert
-auch ohne Ollama.
+Für eine 8-GB-GPU ist `qwen3:8b` die praktische Voreinstellung, `scripts/bootstrap-debian.sh`
+verwendet standardmässig `qwen3:14b`. Installierte Modelle können in der GUI ausgewählt werden.
+Die Compliance-Bewertung selbst bleibt deterministisch und funktioniert auch ohne Ollama. Passwörter
+und private Schlüssel werden nie an Ollama gesendet.
 
-```
+```bash
 ollama pull qwen3:8b
 ```
 
@@ -194,7 +288,25 @@ dass das System betroffen ist; diese Statusarten werden getrennt dargestellt.
 
 [#cli](#cli)
 
+```text
+hardening-agent [--model MODEL] [--ollama-url URL] [--version]
+
+hardening-agent target add NAME [--host HOST] [--user USER] [--port PORT]
+    [--identity-file PATH] [--local] [--vm-name NAME] [--libvirt-uri URI]
+hardening-agent target list
+
+hardening-agent audit TARGET [--output PATH]
+hardening-agent doctor
+hardening-agent snapshot TARGET
+hardening-agent vagrant-access [--operator USER]
+
+hardening-agent gui [--host HOST] [--port PORT] [--output PATH]
+    [--libvirt-uri URI] [--no-browser] [--allow-root] [--allow-remote]
 ```
+
+Beispiele:
+
+```bash
 hardening-agent doctor
 hardening-agent target add debian-local --local
 hardening-agent target list
@@ -202,43 +314,53 @@ hardening-agent audit debian-local
 hardening-agent gui --no-browser --model qwen3:8b
 ```
 
+`--allow-root` und `--allow-remote` sind ausdrückliche Troubleshooting-Optionen; siehe
+[Sicherheit](#sicherheit) für ihre Risiken.
+
 ## Sicherheit
 
 [#sicherheit](#sicherheit)
 
-- GUI bindet standardmässig nur an `127.0.0.1`.
-- Zustandsändernde API-Aufrufe benötigen ein sitzungsgebundenes Token.
+- GUI bindet standardmässig nur an `127.0.0.1` und verweigert Root-Betrieb, sofern nicht
+  ausdrücklich `--allow-root` gesetzt wird.
+- Zustandsändernde API-Aufrufe und Downloads benötigen ein zufälliges, pro Prozess erzeugtes
+  Token, lokale `Host`-Header werden validiert, JSON-Anfragegrössen sind begrenzt, und die GUI
+  sendet restriktive Browser-Sicherheits-Header.
+- `--allow-remote` hebt die Loopback-Bindung auf. Die GUI besitzt weiterhin keine
+  Konto-Authentifizierung und kein TLS; dieses Flag sollte nicht in einem nicht
+  vertrauenswürdigen Netzwerk verwendet werden.
 - Inventar und Scanberichte werden lokal gespeichert.
 - Ziele laden keine Richtlinien aus dem Internet; der Agent verwaltet Quellen und Transporte.
-- Massnahmen benötigen eine ausdrückliche Auswahl und Bestätigung.
+  Online-Erkennung von Leitfäden akzeptiert nur HTTPS-Treffer aus einer distributionsspezifischen
+  Vendor-Allowlist.
+- SSH läuft über den System-OpenSSH-Client mit aktivierter Host-Key-Prüfung.
+- Passwörter und private SSH-Schlüssel werden nie an Ollama gesendet; Qwen erhält ausschliesslich
+  Quellmetadaten und fehlgeschlagene Baseline-Zuordnungen als Kontext, keine ausführbaren Inhalte.
+- Massnahmen benötigen eine ausdrückliche Auswahl und Bestätigung; generierte Skripte bleiben
+  inert, bis sie separat mit `--apply` oder `--rollback` ausgeführt werden.
 - Vor produktiver Anwendung sind Snapshot/Backup und Konsolenzugang erforderlich.
+- Sicherheitslücken (Command-Injection, Privilege-Escalation, Secret-Disclosure, unsicheres
+  Rollback, Remote-Lockout) bitte nicht als öffentliches Issue melden, sondern den Maintainer
+  privat kontaktieren, siehe [`SECURITY.md`](SECURITY.md).
 
-## Bekannte Einschränkungen und Risikoakzeptanz
-
-[#bekannte-einschränkungen-und-risikoakzeptanz](#bekannte-einschränkungen-und-risikoakzeptanz)
-
-Diese Punkte sind bewusste Designentscheidungen oder aktuelle Grenzen, keine übersehenen Lücken:
-
-- **Prüfsumme statt Signatur:** externe SCAP-/ComplianceAsCode-Inhalte werden per Hash, nicht per
-  kryptografischer Signatur verifiziert. Schützt vor Übertragungsfehlern, nicht vor einer
-  kompromittierten Quelle.
-- **Kein technisch erzwungener Rollback-Schutz:** Snapshot/Backup vor produktivem Apply ist
-  Betriebsanweisung, keine vom Agenten blockierte Voraussetzung.
-- **Sitzungstoken ohne Mehrbenutzer-Isolation:** die Bindung an `127.0.0.1` verhindert entfernten
-  Zugriff, trennt aber auf einem Mehrbenutzer-Host nicht automatisch zwischen lokalen
-  Betriebssystem-Benutzern.
-- **Agent-Host gilt als vertrauenswürdig:** ein bereits kompromittierter Agent-Host liegt
-  ausserhalb des Bedrohungsmodells; es gibt keine Kontrolle, die sich selbst gegen einen
-  root-Angreifer auf diesem Host schützt.
+Der erste Release ist kein Zertifizierungsprodukt. Generierte Pakete vor dem Produktivbetrieb
+prüfen und auf entbehrlichen Systemen testen.
 
 ## Entwicklung
 
 [#entwicklung](#entwicklung)
 
-```
+```bash
 ./.venv/bin/python -m pytest
 ./.venv/bin/python -m ruff check src tests
 node --check src/hardening_agent/web/app.js
 ```
+
+Beiträge folgen [`CONTRIBUTING.md`](CONTRIBUTING.md): eine Regeländerung pro Branch, mit
+autoritativen Quellenangaben, Prüf-, Remediation-, Verify- und Rollback-Logik sowie Tests.
+`pytest`, `ruff` und `shellcheck` gegen ein generiertes Paket müssen bestehen. Modellgenerierter
+Shell-Text darf nie in ein Paket gelangen. Regeländerungen benötigen ein Security-Review; eine
+reine Quell-URL genügt nicht, verlangt werden Dokumenttitel, gültige Version, Kontrollreferenz und
+Prüfdatum.
 
 Lizenz: Apache-2.0.
