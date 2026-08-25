@@ -33,8 +33,8 @@ Der Prüfbericht stellt beide Ebenen getrennt dar. Das heruntergeladene Berichts
 vollständigen Hersteller-Benchmark als HTML und JSON sowie die allgemeine Linux-Einordnung als
 separate JSON-Datei.
 
-Das Maßnahmenpaket wird aus einem frischen OpenSCAP-Ergebnis nur für die ausgewählten Regeln
-erzeugt. Nach dem Full Scan priorisiert Qwen im Hintergrund ausschließlich echte fehlgeschlagene
+Das Massnahmenpaket wird aus einem frischen OpenSCAP-Ergebnis nur für die ausgewählten Regeln
+erzeugt. Nach dem Full Scan priorisiert Qwen im Hintergrund ausschliesslich echte fehlgeschlagene
 OpenSCAP-Regeln und berücksichtigt den OVAL-Schwachstellenkontext. Der Vorschlag kann mit einem
 Klick in die Auswahl übernommen werden, muss aber vom Betreiber geprüft werden. Regel-IDs werden
 serverseitig gegen den Scan abgeglichen. Qwen führt keine Root-Befehle aus und erzeugt keine
@@ -105,7 +105,7 @@ Wenn bereits eine ältere GUI auf Port 8765 läuft:
 
 Die GUI ist unter `http://127.0.0.1:8765` erreichbar. Sie soll nicht als root gestartet werden.
 Root-Rechte werden nur auf dem Ziel und nur dort angefordert, wo OpenSCAP oder eine ausdrücklich
-bestätigte Maßnahme sie benötigt.
+bestätigte Massnahme sie benötigt.
 
 Debian 13 enthält im stabilen Paket `ssg-debian` 0.1.76 noch keinen Debian-13-Datenstrom. Die GUI
 verwendet niemals ersatzweise den Debian-12-Benchmark. Nach ausdrücklicher Bestätigung lädt der
@@ -126,7 +126,7 @@ ollama pull qwen3:8b
 ## Zielarten
 
 - lokal
-- SSH mit Schlüssel oder Passwort/SSH-Agent gemäß lokaler SSH-Konfiguration
+- SSH mit Schlüssel oder Passwort/SSH-Agent gemäss lokaler SSH-Konfiguration
 - Vagrant über dessen CLI und Projektverzeichnis
 - KVM/libvirt optional
 
@@ -159,11 +159,11 @@ hardening-agent gui --no-browser --model qwen3:8b
 
 ## Sicherheit
 
-- GUI bindet standardmäßig nur an `127.0.0.1`.
+- GUI bindet standardmässig nur an `127.0.0.1`.
 - Zustandsändernde API-Aufrufe benötigen ein sitzungsgebundenes Token.
 - Inventar und Scanberichte werden lokal gespeichert.
 - Ziele laden keine Richtlinien aus dem Internet; der Agent verwaltet Quellen und Transporte.
-- Maßnahmen benötigen eine ausdrückliche Auswahl und Bestätigung.
+- Massnahmen benötigen eine ausdrückliche Auswahl und Bestätigung.
 - Vor produktiver Anwendung sind Snapshot/Backup und Konsolenzugang erforderlich.
 
 ## Entwicklung
