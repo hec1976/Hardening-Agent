@@ -3,7 +3,7 @@
 Lokale Weboberfläche für vollständige Linux-Compliance-Prüfungen mit OpenSCAP/XCCDF,
 offiziellen OVAL-Schwachstellenfeeds und einer lokalen Risiko-Priorisierung durch Ollama/Qwen.# Linux Hardening Agent
 
-Lokale Weboberfläche für vollständige Linux-Compliance-Prüfungen mit OpenSCAP/XCCDF,
+Lokale Weboberfläche für vollständige Linux-Compliance-Prüfungen mit OpenSCAP/XCCDF, 
 offiziellen OVAL-Schwachstellenfeeds und einer lokalen Risiko-Priorisierung durch Ollama/Qwen.
 
 Der Agent besitzt keinen eigenen festen Hardening-Regelkatalog. Der Prüfumfang stammt aus dem
