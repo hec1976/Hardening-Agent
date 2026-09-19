@@ -4,7 +4,7 @@
 
 Do not open a public issue for a vulnerability that could lead to command
 injection, privilege escalation, secret disclosure, unsafe rollback, or remote
-lockout. Contact the repository maintainer privately.
+lockout. Contact the repository maintainer privately. 
 
 ## Trust model
 
